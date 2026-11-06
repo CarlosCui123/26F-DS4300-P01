@@ -211,6 +211,51 @@ def e5_insert_order(writer: ResultsWriter, tracks: list[dict], reps: int) -> Non
 
                 print(f'  n={n:>7,}  {order:<14}  {name:<14} done', flush=True)
 
+def e2_point_lookups(writer: ResultsWriter, tracks: list[dict], reps: int) -> None:
+    '''
+    E2: How does point-lookup cost grow with n, for hits and for misses?
+
+    Uses track_id in file order at the same six sizes as E1 (SPOTIFY_SIZES).
+    For each size, one batch of N_POINT hit queries (hit_rate=1.0) and one
+    batch of N_POINT miss queries (hit_rate=0.0) is generated before timing.
+    Each index is built once per (size, index); every replicate then times
+    both batches on that index.
+
+    Args:
+        writer: Results writer; each timed batch becomes one CSV row.
+        tracks: Spotify rows from load_tracks().
+        reps: Number of timed replicates per configuration.
+    '''
+    pairs = key_value_pairs(tracks, 'track_id')
+
+    for n in SPOTIFY_SIZES:
+        subset = pairs[:n]
+        # track_id is not unique, so queries are drawn from the distinct ids.
+        distinct = list(dict.fromkeys(key for key, _ in subset))
+        batches = {
+            'point_hit': (1.0, point_queries(distinct, N_POINT, hit_rate=1.0, seed=SEED + 10)),
+            'point_miss': (0.0, point_queries(distinct, N_POINT, hit_rate=0.0, seed=SEED + 11)),
+        }
+
+        for name in ALL_INDEXES:
+            # Build is not the subject of E2 (E1 measures it), so build once.
+            index = make_index(name)
+            time_build(index, subset)
+            height = index.structure_info().get('height', '')
+
+            for rep in range(reps):
+                for operation, (hit_rate, queries) in batches.items():
+                    index.reset_stats()
+                    ns = time_batch(index.search, queries)
+                    writer.record(
+                        index, experiment='E2_point_track_id', dataset='spotify',
+                        key_column='track_id', insert_order='file', n_keys=n,
+                        operation=operation, operation_param=hit_rate,
+                        n_ops=len(queries), rep=rep, total_ns=ns, height=height,
+                        notes=f'distinct_keys={len(distinct)}; hit_seed={SEED + 10}; miss_seed={SEED + 11}',
+                    )
+            print(f'  n={n:>7,} {name:<14} done', flush=True)
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
@@ -218,6 +263,7 @@ EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     'E1_build_memory': e1_build_memory,
     # The command-line entry point for registering E5.
     'E5_insert_order': e5_insert_order,
+    'E2_point_track_id': e2_point_lookups,
 }
 
 
