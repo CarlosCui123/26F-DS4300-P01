@@ -27,8 +27,7 @@ from bench.cli import parse, parser, writer_from_args
 from bench.results import ResultsWriter
 from bench.timing import build_memory_bytes, time_batch, time_build
 # added for E1 nd E5
-from datagen.synthetic import arrange, point_queries, random_keys
-
+from datagen.synthetic import arrange, point_queries, prefix_queries, random_keys, range_queries
 from indexes import ALL_INDEXES, make_index
 from loaders.spotify import key_value_pairs, load_tracks
 
@@ -256,6 +255,56 @@ def e2_point_lookups(writer: ResultsWriter, tracks: list[dict], reps: int) -> No
                     )
             print(f'  n={n:>7,} {name:<14} done', flush=True)
 
+# E3: range-query widths, as fractions of the distinct tempo values.
+SELECTIVITIES = (0.0001, 0.001, 0.01, 0.05, 0.1, 0.25)
+# Range queries per batch (the same number the CORE suite uses).
+N_RANGE = 200
+
+
+def e3_range_tempo(writer: ResultsWriter, tracks: list[dict], reps: int) -> None:
+    '''
+    E3: How does range-query cost depend on how much of the data the range covers?
+
+    Uses tempo for all 114,000 rows, in file order. For each selectivity, one
+    batch of N_RANGE ranges is generated before timing; each range covers
+    exactly w = round(selectivity * d) distinct tempo values (d = distinct count).
+    Each index is built once; every replicate then times every batch on it.
+
+    Args:
+        writer: Results writer; each timed batch becomes one CSV row.
+        tracks: Spotify rows from load_tracks().
+        reps: Number of timed replicates per configuration.
+    '''
+    pairs = key_value_pairs(tracks, 'tempo')
+    keys = [key for key, _ in pairs]
+    distinct_count = len(set(keys))
+
+    # Generate every batch of ranges before any timing starts.
+    batches = {
+        selectivity: range_queries(keys, N_RANGE, selectivity, seed=SEED + 20)
+        for selectivity in SELECTIVITIES
+    }
+
+    for name in ALL_INDEXES:
+        # Build is not the subject of E3 (E1 measures it), so build once.
+        index = make_index(name)
+        time_build(index, pairs)
+        height = index.structure_info().get('height', '')
+
+        for selectivity, queries in batches.items():
+            width = max(1, round(selectivity * distinct_count))
+            for rep in range(reps):
+                index.reset_stats()
+                ns = time_batch(lambda q: index.range_search(*q), queries)
+                writer.record(
+                    index, experiment='E3_range_tempo', dataset='spotify',
+                    key_column='tempo', insert_order='file', n_keys=len(pairs),
+                    operation='range', operation_param=selectivity,
+                    n_ops=len(queries), rep=rep, total_ns=ns, height=height,
+                    notes=f'distinct_keys={distinct_count}; width={width}; seed={SEED + 20}',
+                )
+        print(f'  {name:<14} done', flush=True)
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
@@ -264,6 +313,7 @@ EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     # The command-line entry point for registering E5.
     'E5_insert_order': e5_insert_order,
     'E2_point_track_id': e2_point_lookups,
+    'E3_range_tempo': e3_range_tempo,
 }
 
 
