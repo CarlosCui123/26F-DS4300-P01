@@ -305,6 +305,54 @@ def e3_range_tempo(writer: ResultsWriter, tracks: list[dict], reps: int) -> None
                 )
         print(f'  {name:<14} done', flush=True)
 
+# E4: prefix lengths to test (how many characters the user has typed).
+PREFIX_LENGTHS = (1, 2, 3, 4, 5)
+
+
+def e4_prefix_track_name(writer: ResultsWriter, tracks: list[dict], reps: int) -> None:
+    '''
+    E4: How does prefix-search cost depend on prefix length?
+
+    Uses track_name (lower-cased and trimmed by the loader) for every row
+    that has a name, in file order. For each prefix length, one batch of
+    N_RANGE prefixes is generated before timing; every prefix is the start
+    of a real title, so it matches at least one key.
+    Each index is built once; every replicate then times every batch on it.
+
+    Args:
+        writer: Results writer; each timed batch becomes one CSV row.
+        tracks: Spotify rows from load_tracks().
+        reps: Number of timed replicates per configuration.
+    '''
+    pairs = key_value_pairs(tracks, 'track_name')
+    keys = [key for key, _ in pairs]
+    distinct_count = len(set(keys))
+
+    # Generate every batch of prefixes before any timing starts.
+    batches = {
+        length: prefix_queries(keys, N_RANGE, length, seed=SEED + 30)
+        for length in PREFIX_LENGTHS
+    }
+
+    for name in ALL_INDEXES:
+        # Build is not the subject of E4 (E1 measures it), so build once.
+        index = make_index(name)
+        time_build(index, pairs)
+        height = index.structure_info().get('height', '')
+
+        for length, queries in batches.items():
+            for rep in range(reps):
+                index.reset_stats()
+                ns = time_batch(index.prefix_search, queries)
+                writer.record(
+                    index, experiment='E4_prefix_track_name', dataset='spotify',
+                    key_column='track_name', insert_order='file', n_keys=len(pairs),
+                    operation='prefix', operation_param=length,
+                    n_ops=len(queries), rep=rep, total_ns=ns, height=height,
+                    notes=f'distinct_keys={distinct_count}; seed={SEED + 30}',
+                )
+        print(f'  {name:<14} done', flush=True)
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
@@ -314,6 +362,7 @@ EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     'E5_insert_order': e5_insert_order,
     'E2_point_track_id': e2_point_lookups,
     'E3_range_tempo': e3_range_tempo,
+    'E4_prefix_track_name': e4_prefix_track_name,
 }
 
 
