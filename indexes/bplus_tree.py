@@ -172,21 +172,26 @@ class BPlusTreeIndex(Index):
 
     def range_search(self, lo: Any, hi: Any) -> list[Any]:
         result: list[Any] = []
-        if lo <= hi:
-            self._collect_range(self._root, lo, hi, result)
-        return result
+        if not (lo <= hi):
+            return result
 
-    def _collect_range(self, node: _Node, lo: Any, hi: Any, out: list[Any]) -> None:
-        """Gather values for keys in [lo, hi] from the subtree under ``node``, in key order."""
-        self.stats.nodes_visited += 1
-        if isinstance(node, _Leaf):
-            for key, values in zip(node.keys, node.values):
-                if lo <= key <= hi:
-                    out.extend(values)
-            self.stats.comparisons += len(node.keys)
-            return
-        for child in node.children:
-            self._collect_range(child, lo, hi, out)
+        leaf: Optional[_Leaf] = self._find_leaf(lo)
+        start = self._bisect_left(leaf.keys, lo)
+        while leaf is not None:
+            stop = len(leaf.keys)
+            for i in range(start, stop):
+                if hi < leaf.keys[i]:
+                    self.stats.comparisons += i - start + 1
+                    return result
+                result.extend(leaf.values[i])
+            self.stats.comparisons += stop - start
+
+            # _find_leaf counted the first leaf. Count each linked leaf once.
+            leaf = leaf.next
+            if leaf is not None:
+                self.stats.nodes_visited += 1
+            start = 0
+        return result
 
     # ------------------------------------------------------------------ structure
     def structure_info(self) -> dict[str, Any]:
