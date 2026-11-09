@@ -2,65 +2,67 @@
 
 ## Summary
 
-修复前，有序列表索引 sorted_list 虽然按顺序保存键，但 search 方法仍从头开始线性扫描。在 E5 的十万个不同键、随机插入配置下，将线性扫描替换为二分查找后，单次命中查询的平均耗时由 2,242.143 微秒降至 1.974 微秒，约加速 1,135.6 倍；记录的平均比较次数由 51,742.148 次降至 17.663 次。
+Before the repair, although the ordered list index sorted_list saved the keys in order, the search method still performed a linear scan from the beginning. Under the configuration of one hundred thousand different keys and random insertion in E5, after replacing the linear scan with binary search, the average time for a single hit query decreased from 2,242.143 microseconds to 1.974 microseconds, approximately accelerating by 1,135.6 times; the average number of comparisons recorded decreased from 51,742.148 times to 17.663 times.
 
 ## Detection
 
-我们首先通过 E5 的原始结果和比较次数汇总发现问题。修复前的代码版本为 03d990e，对应运行 session_id 为 240c73092ceb。
+Firstly, we identified the problem by analyzing the original results and the number of comparisons of E5. The code version before the fix was 03d990e, corresponding to the running session_id as 240c73092ceb.
 
-当不同键的数量从 1,000 增加到 100,000 时，每次成功查询的平均比较次数从 500.733 增加到 51,742.148，几乎随数据量成比例增长。这种增长趋势使我们怀疑，查找过程没有充分利用键已经有序的性质。
+When the number of different keys increased from 1,000 to 100,000, the average number of comparisons for each successful query increased from 500.733 to 51,742.148, almost increasing proportionally with the data volume. This growth trend led us to suspect that the search process did not fully utilize the ordered nature of the keys. 
 
-每种配置均重复测量五次，每次测量包含 1,000 次命中查询。
+Each configuration was measured five times, and each measurement included 1,000 hit queries.
 
 ## Expected vs. observed
 
-这里的 n 表示不同键的数量。对于使用二分查找的有序列表，单次查找应具有 O(log n) 的时间复杂度；定位候选位置后，最终的相等判断至多再增加一次比较计数。
+The n in here represents the number of different keys. For an ordered list using binary search, a single search should have a time complexity of O(log n); after locating the candidate position, the final equality check will add at most one more comparison count.
 
-实际观察到，修复前的比较次数近似随 n 线性增长，符合 O(n) 扫描的表现。修复后，数据量增加一百倍，平均比较次数仅从 10.976 增至 17.663，符合二分查找的对数增长趋势。
+Observations show that the number of comparisons before the fix approximately linearly increases with n, matching the performance of O(n) scanning. After the fix, the data volume increases by a hundred times, while the average number of comparisons only increases from 10.976 to 17.663, which conforms to the logarithmic growth trend of binary search.
 
-修复前的代码版本为 03d990e，修复后的代码版本为 870c3a9。两轮实验使用相同的键、查询和随机种子：keys_seed=4300、query_seed=4301、order_seed=4302。
+The version of the code before the fix was 03d990e, and the version after the fix was 870c3a9. The two rounds of experiments used the same keys, queries, and random seeds: keys_seed = 4300, query_seed = 4301, order_seed = 4302.
 
 ## Evidence
 
-我们使用 results/timings.csv 中的 E5_insert_order 结果。修复前版本为 03d990e（session：240c73092ceb），修复后版本为 870c3a9（session：558bce9a341a）。两轮实验均在 fenghao-pc 的 Docker 环境中运行，使用相同的键、查询和随机种子；每个配置重复五次，每批包含 1,000 次命中查询。
+We use the E5_insert_order results from the **'results/timings.csv**' file. The version before the fix was 03d990e (session: 240c73092ceb), and the version after the fix was 870c3a9 (session: 558bce9a341a). Both experiments were run in the Docker environment on **fenghao-pc**, using the same keys, queries, and random seeds; each configuration was repeated five times, with each batch containing 1,000 hit queries.
 
 ![Lookup performance before and after the fix](../analysis/figures_INC01/INC-01_lookup_time.png)
 
-图中每个点表示五次重复测量的平均查询耗时，误差棒表示样本标准差。四种插入顺序下，修复后的查询耗时均明显降低，且随键数量增加而增长得更缓慢。
+Each point in the graph represents the average query time obtained from five repeated measurements. The error bars indicate the sample standard deviation. Under the four insertion orders, the query time after repair has significantly decreased, and it increases more slowly as the number of keys increases.
 
 ![Lookup performance before and after the fix](../analysis/figures_INC01/INC-01_lookup_comparisons.png)
 
-修复前的比较次数随数据规模近似线性增长，修复后增长缓慢，与二分查找的预期一致。四种插入顺序得到相同的比较次数，因为最终的有序键数组和查询序列相同。
+Before the repair, the number of comparisons increased approximately linearly with the data size. After the repair, the growth was slow, which was consistent with the expectation of binary search. The same number of comparisons were obtained for the four insertion orders because the final ordered key array and the query sequence were the same.
 
 ![Table 1: Before-and-after lookup performance under random insertion order](../analysis/figures_INC01/INC01_random_order_before_after_table.png)
 
-表中统计量均来自五次重复测量。显示数值保留三位小数，提速倍数使用完整精度的平均耗时计算。所有图表均可通过 analysis/INC-01_sorted_list.ipynb 重新生成。
+The statistical data in the table are all derived from five repeated measurements. The displayed values are rounded to three decimal places, and the speed-up factor is calculated using the average time consumption with full precision. All charts can be regenerated through the file '**analysis/INC-01_sorted_list.ipynb**'.
 
-另外，使用与 E5 相同的随机种子 4300 和键生成参数，按升序重建包含 100,000 个键的修复后有序列表索引。调用 `structure_info()` 得到：
+Additionally, using the same random seed 4300 and key generation parameters as in E5, rebuild a sorted list index containing 100,000 keys in ascending order.
+
+Calling `structure_info()` ：
 
 ```
 {'distinct_keys': 100000}
 ```
 
-该结果确认索引中保存了 100,000 个不同键，与该配置的 n 一致。此结构检查可通过同一 Notebook 重现；耗时与比较次数仍使用正式 E5 实验记录。
+This result confirms that there are 100,000 different keys stored in the index, which is consistent with the value of n for this configuration. This structure check can be reproduced using the same Notebook; the time taken and the number of comparisons still use the official E5 experimental records.
 
 ## Root cause
 
-Root cause位于修复前版本 03d990e 的 indexes/sorted_list.py，第 53–65 行的 SortedListIndex.search 方法。虽然 self._keys 已经按升序排列，第 57 行仍通过 for i, k in enumerate(self._keys) 从头逐个访问键，第 58 行在每次迭代中增加一次比较计数。
+The root cause is located in the **indexes/sorted_list.py** file of the previous version 03d990e, specifically in lines 53-65 of the SortedListIndex.search method. Although self._keys has been sorted in ascending order, line 57 still iterates through the keys from the beginning using **for i, k in** **enumerate(self._keys)**, and line 58 increments the comparison count in each iteration.
 
-当查询键位于列表后部，或未命中的查询键大于最大键时，代码需要扫描全部不同键。E5 中所有键互异，因此不同键数量等于 n，最坏查找成本为 O(n)。对于均匀分布的命中查询，平均需要检查约 n/2 个键，这与实验中比较次数近似线性增长的现象一致。
+When the query key is at the end of the list, or the unmatched query key is greater than the maximum key, the code needs to scan all the different keys. In E5, all the keys are distinct, so the number of different keys is equal to n, and the worst-case search cost is O(n). For uniformly distributed hit queries, on average, approximately n/2 keys need to be checked, which is consistent with the phenomenon that the number of comparisons in the experiment approximately grows linearly.
 
-同一文件第 27–42 行已经提供了二分查找辅助方法 _bisect_left，它通过不断缩小搜索区间，以 O(log n) 的成本找到第一个大于或等于目标键的位置。但原来的 search 没有调用该方法，因此没有充分利用键的有序性。第 82–83 行的 structure_info 返回 distinct_keys，即 self._keys 的长度；这也说明线性扫描的工作量取决于不同键的数量。
+Lines 27-42 of the same file already provide the binary search helper method _bisect_left, which finds the position of the first key that is greater than or equal to the target key by continuously narrowing the search range at a cost of O(log n). However, the original search did not call this method, thus not fully leveraging the orderliness of the keys. Lines 82-83 of the **structure_info** return **distinct_keys**, which is the length of self._keys; this also indicates that the workload of the linear scan depends on the number of different keys.
 
-原实现仍能返回正确答案：找到匹配键时，第 59–61 行返回对应的值列表；遇到大于目标的键时，第 62–63 行可以正确提前停止，因为后面的键也不可能匹配。因此，这个问题影响的是查询效率，返回结果仍然正确。
+The original implementation can still return the correct answer: When a matching key is found, lines 59-61 return the corresponding list of values; when a key larger than the target is encountered, lines 62-63 can correctly stop prematurely because the subsequent keys cannot match either. Therefore, this issue affects the query efficiency, but the returned result is still correct.
 
 ## Fix
 
-修复提交为 870c3a9，提交信息为 Use binary search for sorted list lookups。
+The fix is submitted as 870c3a9, and the submission message is 'Use binary search for sorted list lookups.''
 
-在 SortedListIndex.search 中，使用已有的 _bisect_left(key) 替代原来的线性扫描，找到第一个大于或等于目标键的位置 pos。随后检查 pos 是否在列表范围内，并确认该位置的键是否等于目标键。匹配时返回对应的值列表，否则返回空列表。
+In the SortedListIndex.search, the existing **_bisect_left(key)** is used instead of the original linear scan to find the position pos where the key is greater than or equal to the target key. Then, it checks if pos is within the list range and confirms if the key at that position is equal to the target key. If a match is found, the corresponding value list is returned; otherwise, an empty list is returned.
 
-_bisect_left 已经记录二分查找过程中的比较次数，因此只需要为最后一次候选键的相等性检查额外增加一次计数。修复后，查找的最坏时间复杂度由 O(n) 降为 O(log n)。
+**_bisect_left** already records the comparison count during the binary search process, so only an additional count is needed for the final equality check of the candidate key. After the fix, the worst-case time complexity of the search is reduced from O(n) to O(log n).
 
 ```diff
 File: indexes/sorted_list.py
@@ -135,28 +137,28 @@ index 3519135..4233282 100644
 
 ```
 
-
-
 ## Verification
 
-修复前后的验证均在同一台机器 fenghao-pc 上进行，使用相同的 E5 工作负载，包括 1,000、10,000 和 100,000 个不同键，以及 random、sorted、reversed 和 nearly_sorted 四种插入顺序。键生成、查询生成和插入顺序使用的随机种子分别为 4300、4301 和 4302。每个配置重复测量五次，每次查找测量包含 1,000 次命中查询。
+The verification before and after the repair was conducted on the same machine, fenghao-pc, using the same E5 workload, including 1,000, 10,000, and 100,000 different keys, as well as four insertion orders: random, sorted, reversed, and nearly_sorted. The random seeds used for key generation, query generation, and insertion order were 4300, 4301, and 4302 respectively. Each configuration was repeated five times, and each search measurement included 1,000 hit queries.
 
-对比的代码版本分别为修复前的 03d990e 和修复后的 870c3a9。在 100,000 个键、随机插入顺序下，平均每次查询耗时从 2,242.143 微秒降至 1.974 微秒，按照未四舍五入的均值计算，提升约 1,135.632 倍。平均每次查询的比较次数从 51,742.148 降至 17.663。四种插入顺序均表现出相同的比较次数变化，支持修复后的查找工作量符合 O(log n) 的预期。
+The compared code versions were **03d990e** before the repair and **870c3a9** after the repair. Under 100,000 keys and random insertion order, the average query time decreased from 2,242.143 microseconds to 1.974 microseconds. According to the unrounded mean value, the improvement was approximately 1,135.632 times. The average number of comparisons per query decreased from 51,742.148 to 17.663. All four insertion orders showed the same change in the number of comparisons, supporting that the repair's search workload met the expected O(log n) expectation.
 
-修复后使用 docker compose run --rm app python -m pytest 运行项目测试，结果为 168 passed, 3 skipped。三个跳过项来自测试套件对无序索引跳过的范围查询结果排序检查，属于预期行为。测试结果表明，这次修改在降低查找工作量的同时，通过了现有的正确性检查。
+After the repair, the project was tested using docker compose run **--rm app python -m pytest**. The result was 168 passed, 3 skipped. The three skipped items came from the test suite's range query result sorting check for unordered indexes, which is an expected behavior. The test results indicate that this modification reduced the search workload while passing the existing correctness checks.
 
 ## Impact on recommendations
 
-这个缺陷可能影响 F1（精确歌曲查找）的索引推荐。修复前，sorted_list 的点查找成本为 O(n)，实验结果会低估有序列表应有的查询性能，可能导致我们过早排除该索引。修复后，点查找成本降为 O(log n)，因此应使用修复后的测量结果，与哈希表、AVL 树和 B+ 树等索引重新比较。
+This defect may affect the index recommendation of F1 (Track page). Before the fix, the point search cost of sorted_list is O(n). The experimental results would underestimate the expected query performance of the sorted list, which might lead us to prematurely exclude this index. After the fix, the point search cost is reduced to O(log n), so the measured results after the fix should be used. These should be compared with indexes such as hash tables, AVL trees, and B+ trees.
 
-对于 F2（前缀查询）和 F3（范围查询），本次 E5 的命中点查找数据不能直接说明这些操作也获得了相同的性能提升。这两项功能的推荐应根据对应查询操作的独立测量确定。
+For F2 (Search-as-you-type) and F3 (Workout mode), the hit point search data of E5 this time cannot directly indicate that these operations also achieved the same performance improvement. The recommendations for these two functions should be determined based on independent measurements of the corresponding query operations.
 
-对于 F4（夜间批量导入），本次修复没有消除有序列表插入新键时可能产生的元素移动成本。因此，点查找的加速不能直接视为导入速度的提升。F4 的推荐还需要结合 E1 的构建时间与内存测量，以及 E5 中不同插入顺序下的构建结果。最终选择应基于各索引完成修复后的可比数据。
+For F4 (Catalog import), this repair does not eliminate the element movement cost that may occur when inserting new keys into the sorted list. Therefore, the acceleration of point search cannot be directly regarded as an improvement in import speed. The recommendation for F4 also needs to be combined with the build time and memory measurement of E1, as well as the build results under different insertion orders in E5. The final choice should be based on comparable data after the repair of each index.
 
 ## Why the tests didn't catch it
 
-现有测试主要检查查询结果是否正确，没有对 search 随数据规模增长时的比较次数设置 O(log n) 的上限。原来的线性扫描仍然能够正确返回匹配键的值列表，并在找不到目标键时返回空列表，因此能够通过正确性测试。
+The current tests mainly check whether the query results are correct, but do not set an upper limit of O(log n) for the number of comparisons when the search is performed as the data size increases. The original linear scan can still correctly return the list of values matching the key, and return an empty list when the target key is not found. Therefore, it can pass the correctness test.
 
-能够发现这个问题的是基于比较计数的复杂度回归测试。例如，分别构建包含 1,024、2,048 和 4,096 个不同键的有序列表，然后查询最大键，以及一个大于最大键的不存在键。每次查询前重置统计计数，并检查查找结果与比较次数。对于当前的二分查找实现，可以将单次查询的比较次数上限设为 ceil(log2(n + 1)) + 1，其中 ceil 表示向上取整，额外的 1 用于最终候选键的相等性检查。
+The problem was discovered through complexity regression tests based on comparison counts. For example, construct ordered lists containing 1,024, 2,048, and 4,096 different keys respectively, and then query the largest key, as well as a key that is greater than the largest key but does not exist. Before each query, reset the statistical count and check the search results against the number of comparisons. For the current binary search implementation, the upper limit of the number of comparisons for a single query can be set to ceil(log2(n + 1)) + 1, where ceil represents rounding up, and an additional 1 is used for the equality check of the final candidate keys.
 
-原来的线性扫描在这些查询中需要检查全部 n 个键，会超过上述上限。使用比较次数作为断言，也能减少机器性能和系统负载对测试判断的影响，比固定耗时阈值更稳定。
+The original linear scan needs to check all n keys in these queries, which would exceed the above limit. Using the number of comparisons as an assertion can also reduce the impact of machine performance and system load on the test judgment, which is more stable than setting a fixed time threshold.
+
+
