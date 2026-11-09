@@ -28,7 +28,7 @@ class HashTableIndex(Index):
 
     INITIAL_CAPACITY = 8
     MAX_LOAD_FACTOR = 0.75   # average keys per bucket before the table grows
-    GROWTH_STEP = 1024       # buckets added each time the table grows
+    GROWTH_FACTOR = 2        # the table doubles its buckets each time it grows
 
     def __init__(self, capacity: int = INITIAL_CAPACITY) -> None:
         super().__init__()
@@ -57,7 +57,7 @@ class HashTableIndex(Index):
 
     def _grow(self) -> None:
         """Move every entry into a larger list of buckets."""
-        new_capacity = len(self._buckets) + self.GROWTH_STEP
+        new_capacity = len(self._buckets) * self.GROWTH_FACTOR
         new_buckets: list[list[tuple[Any, list[Any]]]] = [[] for _ in range(new_capacity)]
         for bucket in self._buckets:
             for entry in bucket:
