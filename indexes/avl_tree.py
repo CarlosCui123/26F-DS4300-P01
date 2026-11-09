@@ -58,9 +58,9 @@ class AVLTreeIndex(Index):
         assert x is not None
         y.left = x.right
         x.right = y
-        # x and y swapped places; refresh their stored heights.
-        _update_height(x)
+        # y is now the child of x, so update y first, then x.
         _update_height(y)
+        _update_height(x)
         self.stats.rotations += 1
         return x
 
@@ -76,9 +76,9 @@ class AVLTreeIndex(Index):
         assert y is not None
         x.right = y.left
         y.left = x
-        # x and y swapped places; refresh their stored heights.
-        _update_height(y)
+        # x is now the child of y, so update x first, then y.
         _update_height(x)
+        _update_height(y)
         self.stats.rotations += 1
         return y
 
