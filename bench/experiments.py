@@ -353,6 +353,76 @@ def e4_prefix_track_name(writer: ResultsWriter, tracks: list[dict], reps: int) -
                 )
         print(f'  {name:<14} done', flush=True)
 
+BPLUS_ORDERS = (3, 4, 8, 16, 32, 64, 128, 256, 512)
+
+
+def e6_bplus_order(writer: ResultsWriter, tracks: list[dict], reps: int) -> None:
+    """Sweep B+ tree order on track ID builds and lookups and on tempo ranges."""
+    id_pairs = key_value_pairs(tracks, 'track_id')
+    tempo_pairs = key_value_pairs(tracks, 'tempo')
+    if min(len(id_pairs), len(tempo_pairs)) < max(SPOTIFY_SIZES):
+        raise ValueError('E6 needs all 114,000 Spotify track_id and tempo pairs.')
+
+    for n in SPOTIFY_SIZES:
+        subset = id_pairs[:n]
+        # Match E2: draw from the distinct IDs in their first appearance order.
+        distinct_ids = list(dict.fromkeys(key for key, _ in subset))
+        hits = point_queries(distinct_ids, N_POINT, hit_rate=1.0, seed=SEED + 10)
+        misses = point_queries(distinct_ids, N_POINT, hit_rate=0.0, seed=SEED + 11)
+        batches = (('point_hit', 1.0, hits), ('point_miss', 0.0, misses))
+
+        for order in BPLUS_ORDERS:
+            for rep in range(reps):
+                common = dict(
+                    experiment='E6_bplus_order', dataset='spotify', key_column='track_id',
+                    insert_order='file', n_keys=n, rep=rep,
+                )
+                index = make_index('bplus_tree', order=order)
+                index.reset_stats()
+                ns = time_build(index, subset)
+                height = index.structure_info()['height']
+                writer.record(
+                    index, **common, operation='build', operation_param='',
+                    n_ops=n, total_ns=ns, height=height,
+                    notes=f'distinct_keys={len(distinct_ids)}',
+                )
+
+                for operation, hit_rate, queries in batches:
+                    index.reset_stats()
+                    ns = time_batch(index.search, queries)
+                    writer.record(
+                        index, **common, operation=operation, operation_param=hit_rate,
+                        n_ops=len(queries), total_ns=ns, height=height,
+                        notes=(f'distinct_keys={len(distinct_ids)}; '
+                               f'hit_seed={SEED + 10}; miss_seed={SEED + 11}'),
+                    )
+            print(f'  n={n:>7,} order={order:<3} build and point done', flush=True)
+
+    # Match the 1% batch from E3, including its full tempo input and seed.
+    selectivity = 0.01
+    tempos = [key for key, _ in tempo_pairs]
+    queries = range_queries(tempos, N_RANGE, selectivity, seed=SEED + 20)
+    distinct_count = len(set(tempos))
+    width = max(1, round(selectivity * distinct_count))
+    for order in BPLUS_ORDERS:
+        index = make_index('bplus_tree', order=order)
+        for key, row_id in tempo_pairs:
+            index.insert(key, row_id)
+        height = index.structure_info()['height']
+
+        for rep in range(reps):
+            index.reset_stats()
+            ns = time_batch(lambda q: index.range_search(*q), queries)
+            writer.record(
+                index, experiment='E6_bplus_order', dataset='spotify',
+                key_column='tempo', insert_order='file', n_keys=len(tempo_pairs),
+                operation='range', operation_param=selectivity, n_ops=len(queries),
+                rep=rep, total_ns=ns, height=height,
+                notes=f'distinct_keys={distinct_count}; width={width}; seed={SEED + 20}',
+            )
+        print(f'  order={order:<3} tempo range done', flush=True)
+
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
@@ -363,6 +433,7 @@ EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     'E2_point_track_id': e2_point_lookups,
     'E3_range_tempo': e3_range_tempo,
     'E4_prefix_track_name': e4_prefix_track_name,
+    'E6_bplus_order': e6_bplus_order,
 }
 
 
