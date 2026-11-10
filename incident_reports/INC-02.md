@@ -48,7 +48,7 @@ The answers are still correct, because every key is still moved to the right buc
 
 ## Fix
 
-Commit `aeccc40`: the table now doubles its buckets when it grows. (The commit message says "INC-03" because we renumbered the reports after the commit was made.)
+Commit `aeccc40`: the table now doubles its buckets when it grows.
 
 ```diff
 --- a/indexes/hash_table.py

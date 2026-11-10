@@ -50,7 +50,7 @@ These wrong heights make `_rebalance` think some subtrees are taller than they a
 
 ## Fix
 
-Commit `d0d4605`: update the child's height first, then the new parent's. (The commit message says "INC-05" because we renumbered the reports after the commit was made.)
+Commit `d0d4605`: update the child's height first, then the new parent's.
 
 ```diff
 --- a/indexes/avl_tree.py
