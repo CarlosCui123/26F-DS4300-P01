@@ -1,9 +1,9 @@
-"""Evidence for INC-03 (hash table) and INC-05 (AVL tree).
+"""Evidence for INC-02 (hash table) and INC-03 (AVL tree).
 
 Reads results/timings.csv and summarises every *build* row of the hash
 table and the AVL tree, grouped by code_version, so the same script shows
 the numbers before and after a fix. Saves two figures to
-analysis/figures_INC03_05/.
+analysis/figures_INC02_03/.
 
 Run inside Docker:
     docker compose run --rm app python analysis/evidence_hash_avl.py
@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-FIG_DIR = ROOT / "analysis" / "figures_INC03_05"
+FIG_DIR = ROOT / "analysis" / "figures_INC02_03"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 df = pd.read_csv(ROOT / "results" / "timings.csv")
@@ -36,7 +36,7 @@ def slope(group: pd.DataFrame, column: str) -> float:
 
 # ---------------------------------------------------------------- hash table
 print("=" * 70)
-print("INC-03  hash table build")
+print("INC-02  hash table build")
 print("=" * 70)
 hash_rows = builds[builds["index_type"] == "hash_table"]
 for (experiment, version), g in hash_rows.groupby(["experiment", "code_version"]):
@@ -58,7 +58,7 @@ for (experiment, version), g in hash_rows.groupby(["experiment", "code_version"]
 # ------------------------------------------------------------------ AVL tree
 print()
 print("=" * 70)
-print("INC-05  AVL tree build")
+print("INC-03  AVL tree build")
 print("=" * 70)
 avl_rows = builds[builds["index_type"] == "avl_tree"]
 for (experiment, version, order), g in avl_rows.groupby(
