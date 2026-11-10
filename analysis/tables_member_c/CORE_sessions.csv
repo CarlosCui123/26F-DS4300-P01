@@ -2,4 +2,8 @@ machine_id,code_version,session_id,member,date,batches,min_reps,complete,python_
 fenghao-pc,f5dfa0b,7b67239288ad,fenghao,2026-11-02T04:32:13+00:00,210,5,True,3.13.18,0,Original source
 cimy-mbp,03d990e,266eb953266a,cimy,2026-11-05T23:28:30+00:00,210,5,True,3.13.18,0,Original source
 zuoheng-mbp,f5dfa0b,214c115ab1fa,zuoheng,2026-11-08T22:35:02+00:00,210,5,True,3.13.18,0,Original source
-zuoheng-mbp,0d49e62,60616fab1fe7,zuoheng,2026-11-08T22:36:53+00:00,210,5,True,3.13.18,0,Current source
+zuoheng-mbp,0d49e62,60616fab1fe7,zuoheng,2026-11-08T22:36:53+00:00,210,5,True,3.13.18,0,Intermediate source (0d49e62)
+cimy-mbp,c735d0c,e90ee4333937,cimy,2026-11-09T23:09:18+00:00,210,5,True,3.13.18,0,Current source
+cimy-mbp,814d553,2f7a50dd113f,cimy,2026-11-10T18:03:04+00:00,210,5,True,3.13.18,0,Current source
+fenghao-pc,2c1d06b,c5a132b49b79,fenghao,2026-11-10T19:53:00+00:00,210,5,True,3.13.18,0,Current source
+zuoheng-mbp,2c1d06b,cfec07b65b4f,zuoheng,2026-11-10T20:32:44+00:00,210,5,True,3.13.18,0,Current source

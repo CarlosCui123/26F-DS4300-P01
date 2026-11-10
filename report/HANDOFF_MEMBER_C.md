@@ -1,28 +1,25 @@
 # Member C handoff
 
-- Base of the handoff branch: `a61210d` from `main`.
-- E6 baseline: `a152bd8`. B+ range repair: `0d49e62`.
-- E6: `make experiments MEMBER=zuoheng MACHINE=zuoheng-mbp ONLY=E6_bplus_order`. Both Docker runs contain 855 batches. The original session is `449665fab6ee` and the repaired session is `1873dc08b837`.
-- C CORE sessions are `214c115ab1fa` (original `f5dfa0b`) and `60616fab1fe7` (current `0d49e62`), 210 batches each.
-- E3 session `4bfebe4a211e` and E4 session `e32f04a9efaa` are the full seven-index retests at `0d49e62`.
-- INC-04 explains the B+ range and prefix scan and includes before/after timing and counter evidence. The supplied Docker test suite passed 168 tests with 3 expected skips.
-- `analysis/E6_bplus_order.ipynb` produces the order sweep. `analysis/Part_E_hardware.ipynb` produces machine coverage, counter agreement, median ratios, ranks, CVs and RAM estimates. `analysis/team_evidence.ipynb` audits the A/B handoff and compares the post-B+ retests. Run them from the repository root or `analysis/` with the provided Jupyter environment.
+## Final CORE and hardware comparison
 
-`make check` passes the supplied tests, C's two CORE runs, and the E1-E6, incident and notebook checks. Its two remaining failures are the missing final CORE sessions for `fenghao-pc` and `cimy-mbp`.
+Each session has 210 timed batches (42 configurations with five replicates). The original and final comparisons use Python 3.13.18 in Docker with `PYTHONHASHSEED=0`.
 
-## Finish the team handoff
+| Machine | Original version and session | Final version and session |
+|---|---|---|
+| `fenghao-pc` | `f5dfa0b` · `7b67239288ad` | `2c1d06b` · `c5a132b49b79` |
+| `cimy-mbp` | `03d990e` · `266eb953266a` | `814d553` · `2f7a50dd113f` |
+| `zuoheng-mbp` | `f5dfa0b` · `214c115ab1fa` | `2c1d06b` · `cfec07b65b4f` |
 
-1. Bring in any outstanding hash-table and AVL work from B. At `a61210d`, the hash table still adds 1,024 buckets per resize and rehashes every entry. The AVL rotation methods update the promoted node's height before updating its demoted child. Confirm and document each change with its own incident evidence before rerunning affected experiments.
-2. Agree on one clean final source commit. Each member runs CORE on their own machine from that commit. Preserve the original sessions and any intermediate runs. Rerun the affected E1–E6 experiments after additional index fixes and update the report's session selections and recommendations.
+The final recorded commits have identical Git objects for the index implementations, CORE suite, timer, loaders, Dockerfile and requirements. The two original recorded commits also match on those paths. All 150 workload-counter checks agree across the three machines within each phase. The raw CSV retains C's intermediate CORE session `60616fab1fe7` at `0d49e62` and B's earlier run of the final source, session `e90ee4333937` at `c735d0c`. The final comparison uses the sessions listed above.
 
-   ```sh
-   make data
-   make core MEMBER=fenghao MACHINE=fenghao-pc
-   # On Cimy's own machine at the same final commit:
-   make core MEMBER=cimy MACHINE=cimy-mbp
-   # On Zuoheng's own machine at the same final commit:
-   make core MEMBER=zuoheng MACHINE=zuoheng-mbp
-   ```
+The power source on `zuoheng-mbp` was not held constant. The Mac reported battery power before and after the final run and AC power at one intervening check. The recorded host and Docker specs are in `machines.csv`.
 
-3. Merge the CSVs by header, preserving each original row and avoiding duplicate session IDs. Retain both the recorded code version and machine ID. Use the same Python image and hash seed for all runs.
-4. Insert the remaining Part A text and teammate sections into `REPORT_INTEGRATION.md`. Check the final recommendations against the same-version measurements, run `make check`, and export the final PDF for the team's Gradescope submitter.
+To reproduce the benchmark on the same machine, use the recorded commit in a clean checkout and run `make core MEMBER=zuoheng MACHINE=zuoheng-mbp` in Docker. Preserve each run's actual code version and session ID when combining results. Run [Part_E_hardware.ipynb](../analysis/Part_E_hardware.ipynb) from the repository root or `analysis/` to regenerate the source audit, tables, and figures.
+
+## E6 and INC-04
+
+- E6 baseline session `449665fab6ee` at `a152bd8` and repaired session `1873dc08b837` at `0d49e62` each contain 855 timed batches. The B+ implementation and E6 workload source match the repaired session in the final code. Reproduce with `make experiments MEMBER=zuoheng MACHINE=zuoheng-mbp ONLY=E6_bplus_order`.
+- [INC-04](../incident_reports/INC-04.md) documents the bounded B+ range and prefix scan with before/after timings and counters. [E6_bplus_order.ipynb](../analysis/E6_bplus_order.ipynb) produces the order sweep and repair comparison.
+- The C E3/E4 sessions `4bfebe4a211e` and `e32f04a9efaa` measured all seven indexes at `0d49e62` after the B+ repair. The team's final E3/E4 sessions `55119fb085e7` and `8b3c0da12df2` measured the fully repaired implementations at `c735d0c`.
+
+The [shared Google Doc](https://docs.google.com/document/d/1uFSsTSW0JDJm0reU2HMKeptNmE1PhNzXbpH0N46XPH8/edit) is the submission report source. Use `make check` to verify the repository before submitting the PDF.

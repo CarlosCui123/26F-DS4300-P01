@@ -1,4 +1,7 @@
 # Index It
+
+This historical integration draft predates the hash-table and AVL repairs. The [shared report](https://docs.google.com/document/d/1uFSsTSW0JDJm0reU2HMKeptNmE1PhNzXbpH0N46XPH8/edit) contains the final team write-up.
+
 ## 1. Executive summary
 
 **Spotify index experiments · Team integration draft.** Fenghao, Cimy and Zuoheng.
