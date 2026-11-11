@@ -1,4 +1,4 @@
-# INC-01: <one-line></one-line>Sorted List Point Lookup Uses a Linear Scan Instead of Binary Search
+# INC-01: Sorted List Point Lookup Uses a Linear Scan Instead of Binary Search
 
 ## Summary
 
@@ -157,7 +157,7 @@ For F4 (Catalog import), this repair does not eliminate the element movement cos
 
 The current tests mainly check whether the query results are correct, but do not set an upper limit of O(log n) for the number of comparisons when the search is performed as the data size increases. The original linear scan can still correctly return the list of values matching the key, and return an empty list when the target key is not found. Therefore, it can pass the correctness test.
 
-The problem was discovered through complexity regression tests based on comparison counts. For example, construct ordered lists containing 1,024, 2,048, and 4,096 different keys respectively, and then query the largest key, as well as a key that is greater than the largest key but does not exist. Before each query, reset the statistical count and check the search results against the number of comparisons. For the current binary search implementation, the upper limit of the number of comparisons for a single query can be set to ceil(log2(n + 1)) + 1, where ceil represents rounding up, and an additional 1 is used for the equality check of the final candidate keys.
+A complexity regression test based on comparison counts could help catch this issue in the future. For example, construct ordered lists containing 1,024, 2,048, and 4,096 different keys respectively, and then query the largest key, as well as a key that is greater than the largest key but does not exist. Before each query, reset the statistical count and check the search results against the number of comparisons. For the current binary search implementation, the upper limit of the number of comparisons for a single query can be set to ceil(log2(n + 1)) + 1, where ceil represents rounding up, and an additional 1 is used for the equality check of the final candidate keys.
 
 The original linear scan needs to check all n keys in these queries, which would exceed the above limit. Using the number of comparisons as an assertion can also reduce the impact of machine performance and system load on the test judgment, which is more stable than setting a fixed time threshold.
 
